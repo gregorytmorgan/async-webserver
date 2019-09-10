@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Document</title>
+  </head>
+  <body>
+    <button onClick="sendMsg()">Say Hello to the server</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+    <script>
+      const socket = io("http://localhost:8080");
+
+        function sendMsg() {
+            console.log("Client is saying hello ...")
+            let retval = socket.emit("message", "Client says hello");
+            console.log("Client is saying hello ... (Connected: " + retval.connected + ")")
+        }
+
+        socket.on("message", function(data) {
+            console.log("Server response:" + data);
+            let elmResponse = document.getElementById("response")
+            elmResponse.innerHTML += "<p>Hello from the server (" + (new Date()).toUTCString() + ")</p>"
+        });
+    </script>
+    <div id="response"></div>
+  </body>
+</html>
