@@ -16,7 +16,8 @@ import threading
 from aiohttp import web
 
 Verbose = False
-Loop = None
+Webserver_loop = None
+Shutdown_stdin = False
 
 def usage():
     program_name = sys.argv[0]
@@ -44,8 +45,8 @@ for o, a in opts:
         assert False, "unhandled option"
 
 if Verbose:
-    print("options: {}".format(opts))
-    print("args: {}".format(args))
+    logging.info("options: {}".format(opts))
+    logging.info("args: {}".format(args))
 
 def reverse_string(id):
     '''
@@ -55,11 +56,15 @@ def reverse_string(id):
     :return None
     '''
     global Verbose
+    global Shutdown_stdin
 
     logging.info("Thread  : Reverser %d is starting", id)
 
     for line in sys.stdin:
-        print("{}".format(line.rstrip()[::-1]))
+        logging.info("STDIN: {}".format(line.rstrip()))
+
+    Shutdown_stdin = True # recv'd a ctrl-d
+    shutdown_server()
 
     logging.info("Thread  : Reverser %d is finishing", id)
 
@@ -91,9 +96,25 @@ def aiohttp_server():
     async def print_message(sid, message):
         # When we receive a new event of type 'message' through a socket.io connection
         # we print the socket ID and the message
-        logging.info("Socket ID: %s", sid)
-        logging.info("Message: %s", message)
-        await sio.emit('message', message[::-1])
+
+        global Shutdown_stdin
+
+        response = '{"response":"error", "response-text":"error", "response-code":400}'
+
+        if message.startswith("CMD:"):
+            cmd = message[4:]
+            if cmd == "SHUTDOWN":
+                response = '{"response":"ok", "response-text":"ok", "response-code":200}'
+                await sio.emit("message", response) # emit before setting shudown flag
+                Shutdown_stdin = True # flag watched by stdin reader procoess
+
+                shutdown_server()
+            else:
+                pass
+        else:
+            response = '{"response":"ok", "response-text":"ok", "response-code":200}'
+            await sio.emit("message", response)
+            print(message)
 
     # We bind our aiohttp endpoint to our app router
     app.router.add_get('/', index_page_handler)
@@ -102,29 +123,50 @@ def aiohttp_server():
     logging.info("Thread  : aiohttp_server setup exit")
     return runner
 
+
 def run_server(runner):
     '''
-    Start a web server using 'runner'
+    Start the web server
 
     :return None
     '''
-    global Loop
+    global Webserver_loop
 
     logging.info("Thread  : run_server entry")
-    Loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(Loop)
-    Loop.run_until_complete(runner.setup())
+    Webserver_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(Webserver_loop)
+    Webserver_loop.run_until_complete(runner.setup())
     site = web.TCPSite(runner, 'localhost', 8080)
-    Loop.run_until_complete(site.start())
+    Webserver_loop.run_until_complete(site.start())
     logging.info("Thread  : run_server start loop")
 
     # start the server, run until stopped
-    Loop.run_forever()
+    Webserver_loop.run_forever()
 
     # once stop is called, we run the cleanup task
-    Loop.run_until_complete(runner.cleanup())
+    Webserver_loop.run_until_complete(runner.cleanup())
 
     logging.info("Thread  : run_server exit")
+
+
+def shutdown_server():
+    '''
+    Stop the web server
+
+    :return None
+    '''
+    global Webserver_loop
+
+    logging.info("shutdown_server: entry")
+
+    # before stopping the web server, cancel all tasks
+    for task in asyncio.Task.all_tasks(Webserver_loop):
+        logging.info("shutdown_server: Cancel task")
+        Webserver_loop.call_soon_threadsafe(task.cancel)
+
+    # calling Webserver_loop.stop() will not do anything. You must use call_soon_threadsafe()
+    Webserver_loop.call_soon_threadsafe(Webserver_loop.stop)
+
 
 #
 # main
@@ -133,51 +175,24 @@ if __name__ == "__main__":
 
     # setup logging
     format = "%(asctime)s: %(message)s"
-    logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
+    logging.basicConfig(format=format, filename='asyncwebserver.log', filemode='w',  level=logging.INFO, datefmt="%H:%M:%S")
 
     logging.info("Main    : Entry")
 
     logging.info("Main    : Before creating threads")
-    t_reverse = threading.Thread(target=reverse_string, args=(1,))
-    t_webserver = threading.Thread(target=run_server, args=(aiohttp_server(),)) # , daemon=True
+
+    # start the STDIN reader as a daemon so that it goes away when main exits
+    t_reverse = threading.Thread(target=reverse_string, args=(1,), daemon=True)
+
+    # the server is a daemon because it needs a clean shutdown
+    t_webserver = threading.Thread(target=run_server, args=(aiohttp_server(),), daemon=False)
 
     logging.info("Main    : Before starting threads.")
+
     t_reverse.start()
     t_webserver.start()
 
-    logging.info("Main    : Threads started. Waiting for the threads to finish.")
-
-    logging.info("Main    : Before reverser join().")
-    t_reverse.join()
-
-    #
-    # Reverse (stdin/stdout IO) will block until ctrl-D. Once ctrl-D is recv, reverse will
-    # exit/join.
-    #
-
-    logging.info("Main    : After reverser join().")
-
-    #
-    # Once reverser exits, we stop the web server
-
-    if not Loop is None:
-        # before stopping the web server, cancel all tasks
-        for task in asyncio.Task.all_tasks(Loop):
-            logging.info("Main    : Cancel task")
-            task.cancel()
-
-        # calling Loop.stop() will not do anything. You must use call_soon_threadsafe()
-        Loop.call_soon_threadsafe(Loop.stop)
-
-        logging.info("Main    : Before web server join().")
-
-        t_webserver.join() # necessary?
-
-        Loop.close() # necessary?
-
-        logging.info("Main    : After web server join().")
-    else:
-        logging.info("Main    : No loop exists")
+    logging.info("Main    : Threads started.")
 
     logging.info("Main    : Exit")
 

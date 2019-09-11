@@ -9,6 +9,17 @@
 
         const socket = io("http://localhost:8080");
 
+        function shutdown() {
+            let msgInput = document.getElementById("msg_input");
+            msgInput.value = "CMD:SHUTDOWN"
+            sendMsg()
+        }
+
+        function clearResponses() {
+            let elmResponse = document.getElementById("response_container");
+            elmResponse.innerHTML = "";
+        }
+
         function sendMsg() {
             let msgInput = document.getElementById("msg_input");
             msg = msgInput.value
@@ -19,9 +30,34 @@
         socket.on("message", function(data) {
             console.log("Server response: " + data);
             let elmResponse = document.getElementById("response_container");
-            elmResponse.innerHTML += "<p>Msg from the server: " + data + " (" + (new Date()).toUTCString() + ")</p>";
+            elmResponse.innerHTML += '<p class="response">Msg from the server: ' + data + " (" + (new Date()).toUTCString() + ")</p>";
         });
         </script>
+        <style>
+            #bClear {
+                margin: .25em 0 0 0;
+            }
+            #commands_container {
+                border: 1px solid silver;
+                margin: 1em 1em 0 0;
+                padding: .25em;
+            }
+            #response_container {
+                min-height: 1em;
+                border: 1px solid silver;
+                margin: 1em 1em 0 0;
+            }
+
+            .response {
+                margin: 1em 0 0 1em;
+            }
+
+            .response:last-child {
+                margin-bottom: 1em;
+            }
+
+
+        </style>
     </head>
     <body>
         <h1>Async Server Test</h1>
@@ -32,8 +68,14 @@
             Send a message to the server via a web socket.
         </p>
         <input id="msg_input">
-        <button onClick="sendMsg()">Send</button>
+        <button id="bSend" onClick="sendMsg()">Send</button>
 
         <div id="response_container"></div>
+        <button id="bClear" onClick="clearResponses()">Clear</button>
+        <div><h2>Commands</h2></div>
+        <div id="commands_container">
+            <button id="bShutdown" onClick="shutdown()">Shutdown</button>
+
+        </div>
     </body>
 </html>
