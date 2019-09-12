@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.6
 #
-# Web server using websockets + does IO via STDIN/STDOUT
+# Web server with websockets + does IO via STDIN/STDOUT
 #
 # Ref:
 #   Python Socket.io Tutorial: https://tutorialedge.net/python/python-socket-io-tutorial/
@@ -17,7 +17,6 @@ from aiohttp import web
 
 Verbose = False
 Webserver_loop = None
-Shutdown_stdin = False
 
 def usage():
     program_name = sys.argv[0]
@@ -48,31 +47,30 @@ if Verbose:
     logging.info("options: {}".format(opts))
     logging.info("args: {}".format(args))
 
-def reverse_string(id):
+def stdin_reader():
     '''
-    Take a string in from STDIN, reverse it and output to STDOUT
+    Read from STDIN until CTRL-D
 
     :id int The thread id
     :return None
     '''
     global Verbose
-    global Shutdown_stdin
 
-    logging.info("Thread  : Reverser %d is starting", id)
+    logging.info("Thread  : stdin_reader is starting")
 
     for line in sys.stdin:
-        logging.info("STDIN: {}".format(line.rstrip()))
+        logging.info("STDIN   : {}".format(line.rstrip()))
 
-    Shutdown_stdin = True # recv'd a ctrl-d
     shutdown_server()
 
-    logging.info("Thread  : Reverser %d is finishing", id)
+    logging.info("Thread  : stdin_reader is finishing")
 
 
 def aiohttp_server():
     '''
-    :return None
+    Create a web server to send data to STDOUT
 
+    :return None
     '''
     logging.info("Thread  : aiohttp_server setup entry")
 
@@ -97,24 +95,21 @@ def aiohttp_server():
         # When we receive a new event of type 'message' through a socket.io connection
         # we print the socket ID and the message
 
-        global Shutdown_stdin
-
         response = '{"response":"error", "response-text":"error", "response-code":400}'
 
         if message.startswith("CMD:"):
             cmd = message[4:]
             if cmd == "SHUTDOWN":
                 response = '{"response":"ok", "response-text":"ok", "response-code":200}'
-                await sio.emit("message", response) # emit before setting shudown flag
-                Shutdown_stdin = True # flag watched by stdin reader procoess
-
+                await sio.emit("message", response)
+                print("bye", flush=True) # annouce to server the client is going away
                 shutdown_server()
             else:
                 pass
         else:
             response = '{"response":"ok", "response-text":"ok", "response-code":200}'
             await sio.emit("message", response)
-            print(message)
+            print(message, flush=True)
 
     # We bind our aiohttp endpoint to our app router
     app.router.add_get('/', index_page_handler)
@@ -135,12 +130,14 @@ def run_server(runner):
     logging.info("Thread  : run_server entry")
     Webserver_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(Webserver_loop)
+
+    # server setup
     Webserver_loop.run_until_complete(runner.setup())
     site = web.TCPSite(runner, 'localhost', 8080)
     Webserver_loop.run_until_complete(site.start())
     logging.info("Thread  : run_server start loop")
 
-    # start the server, run until stopped
+    # start the server, run until explicitly stopped
     Webserver_loop.run_forever()
 
     # once stop is called, we run the cleanup task
@@ -179,22 +176,27 @@ if __name__ == "__main__":
 
     logging.info("Main    : Entry")
 
-    logging.info("Main    : Before creating threads")
+    logging.info("Main    : Creating threads ...")
 
     # start the STDIN reader as a daemon so that it goes away when main exits
-    t_reverse = threading.Thread(target=reverse_string, args=(1,), daemon=True)
+    t_stdin_reader = threading.Thread(target=stdin_reader, args=(), daemon=True)
 
-    # the server is a daemon because it needs a clean shutdown
+    # the server isn't a daemon because it needs a clean shutdown
     t_webserver = threading.Thread(target=run_server, args=(aiohttp_server(),), daemon=False)
 
-    logging.info("Main    : Before starting threads.")
+    logging.info("Main    : Creating threads ... done.")
 
-    t_reverse.start()
+    logging.info("Main    : Starting threads ...")
+
+    t_stdin_reader.start()
     t_webserver.start()
 
-    logging.info("Main    : Threads started.")
+    logging.info("Main    : Starting threads ... done.")
+
+    logging.info("Main    : Waiting for web server thread to finish ...")
+    t_webserver.join()
+    logging.info("Main    : Waiting for web server thread to finish ... done.")
 
     logging.info("Main    : Exit")
-
 
 # end file
