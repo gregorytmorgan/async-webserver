@@ -2,6 +2,8 @@
 #
 # Web server with websockets + does IO via STDIN/STDOUT
 #
+# Logs to asyncwebserver.log
+#
 # Ref:
 #   Python Socket.io Tutorial: https://tutorialedge.net/python/python-socket-io-tutorial/
 #
