@@ -8,12 +8,17 @@ requires:
   python 3.6
   aiohttp, ...,  pip install aiohttp
 
+Run:
+  > ./asyncwebserver/asyncwebserver.py
 
-Start Server:
-  > python3.6 asyncwebserver.py
+  App will block in terminal, use CTRL-D to cleanly exit.
 
-Send message:
-     1) open http:/localhost:8080, will block in terminal, use CTRL-D to cleanly exit.
-     2) Send a message via HTML input
-     3) Observer terminal output and console logs
+Usage:
+    * Observe asyncwebserver.log 
+    * Open http:/localhost:8080 to view web interface
+    * Observe web console for websocker communication
+    * Messages from the web interface are send to STDOUT
+    * STDIN is monitored and logged to asyncwebserver.log
+    * Cleanly shutdown using CTRL-D to STDIN or send a shutdown msg from the web interface
+    
 
