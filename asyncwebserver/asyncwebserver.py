@@ -14,6 +14,7 @@ import socketio
 import asyncio
 import logging
 import threading
+import aiohttp_cors
 
 from aiohttp import web
 
@@ -77,7 +78,7 @@ def aiohttp_server():
     logging.info("Thread  : aiohttp_server setup entry")
 
     # creates a new Async Socket IO Server
-    sio = socketio.AsyncServer()
+    sio = socketio.AsyncServer(async_mode='aiohttp', cors_allowed_origins='*')
 
     # Creates a new Aiohttp Web Application
     app = web.Application()
@@ -115,6 +116,15 @@ def aiohttp_server():
 
     # We bind our aiohttp endpoint to our app router
     app.router.add_get('/', index_page_handler)
+
+    cors = aiohttp_cors.setup(app)
+
+    for resource in app.router._resources:
+        # Because socket.io already adds cors, if you don't skip socket.io, you get error saying, you've done this already.
+        if resource.raw_match("/socket.io/"):
+            continue
+
+        cors.add(resource, {'*': aiohttp_cors.ResourceOptions(allow_credentials=True, expose_headers="*", allow_headers="*")})
 
     runner = web.AppRunner(app)
     logging.info("Thread  : aiohttp_server setup exit")
