@@ -7,7 +7,11 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
         <script>
 
-        const socket = io("http://localhost:8080");
+        var server_address = "localhost"
+        var server_port = "8888"
+
+        //const socket = io("http://" + server_address + ":" + server_port);
+        const socket = io("http://+ server_address + ":" + server_port);
 
         function shutdown() {
             let msgInput = document.getElementById("msg_input");
@@ -32,6 +36,22 @@
             let elmResponse = document.getElementById("response_container");
             elmResponse.innerHTML += '<p class="response">Msg from the server: ' + data + " (" + (new Date()).toUTCString() + ")</p>";
         });
+
+        function socketConnStatus() {
+            let elmConn = document.getElementById("connStatus");
+            let status = !!(socket && socket.connected);
+            if(status) {
+                elmConn.innerHTML = "Connected " + address + ":" + port;
+                elmConn.className = "connected";
+                status = true;
+            } else {
+                elmConn.innerHTML = "Disconnected";
+                elmConn.className = "disconnected";
+                status = false;
+            }
+
+            return status;
+        }
         </script>
         <style>
             #bClear {
@@ -56,6 +76,27 @@
                 margin-bottom: 1em;
             }
 
+            #connStatus {
+                display: inline-block;
+                border: 1px solid silver;
+                color: black;
+                margin: 0 0 0 .25em;
+                padding: .05em .25em .05em .25em;
+                border-radius: 5px;
+                vertical-align: middle;
+            }
+
+            #connStatus.unknown {
+                background-color: yellow;
+            }
+
+            #connStatus.connected {
+                background-color: green;
+            }
+
+            #connStatus.disconnected {
+                background-color: red;
+            }
 
         </style>
     </head>
@@ -68,7 +109,7 @@
             Send a message to the server via a web socket.
         </p>
         <input id="msg_input">
-        <button id="bSend" onClick="sendMsg()">Send</button>
+        <button id="bSend" onClick="sendMsg()">Send</button><div id="connStatus" class="unknown">Unknown</div>
 
         <div id="response_container"></div>
         <button id="bClear" onClick="clearResponses()">Clear</button>
