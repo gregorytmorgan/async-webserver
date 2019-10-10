@@ -8,10 +8,9 @@
         <script>
 
         var server_address = "localhost"
-        var server_port = "8888"
+        var server_port = "8080"
 
-        //const socket = io("http://" + server_address + ":" + server_port);
-        const socket = io("http://+ server_address + ":" + server_port);
+        const socket = io("http://" + server_address + ":" + server_port);
 
         function shutdown() {
             let msgInput = document.getElementById("msg_input");
@@ -41,7 +40,7 @@
             let elmConn = document.getElementById("connStatus");
             let status = !!(socket && socket.connected);
             if(status) {
-                elmConn.innerHTML = "Connected " + address + ":" + port;
+                elmConn.innerHTML = "Connected " + server_address + ":" + server_port;
                 elmConn.className = "connected";
                 status = true;
             } else {
@@ -52,6 +51,8 @@
 
             return status;
         }
+
+        setInterval(socketConnStatus, 2000);
         </script>
         <style>
             #bClear {

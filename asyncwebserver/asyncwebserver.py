@@ -18,6 +18,9 @@ import aiohttp_cors
 
 from aiohttp import web
 
+server_address = "localhost"
+server_port = "8080"
+
 Verbose = False
 Webserver_loop = None
 
@@ -119,7 +122,7 @@ def aiohttp_server():
 
     cors = aiohttp_cors.setup(app)
 
-    for resource in app.router._resources:
+    for resource in app.router.resources():
         # Because socket.io already adds cors, if you don't skip socket.io, you get error saying, you've done this already.
         if resource.raw_match("/socket.io/"):
             continue
@@ -137,6 +140,8 @@ def run_server(runner):
 
     :return None
     '''
+    global server_address
+    global server_port
     global Webserver_loop
 
     logging.info("Thread  : run_server entry")
@@ -145,7 +150,7 @@ def run_server(runner):
 
     # server setup
     Webserver_loop.run_until_complete(runner.setup())
-    site = web.TCPSite(runner, 'localhost', 8080)
+    site = web.TCPSite(runner, server_address, server_port)
     Webserver_loop.run_until_complete(site.start())
     logging.info("Thread  : run_server start loop")
 
@@ -183,8 +188,11 @@ def shutdown_server():
 if __name__ == "__main__":
 
     # setup logging
+    logfile = 'asyncwebserver.log'
     format = "%(asctime)s: %(message)s"
-    logging.basicConfig(format=format, filename='asyncwebserver.log', filemode='w',  level=logging.INFO, datefmt="%H:%M:%S")
+    logging.basicConfig(format=format, filename=logfile, filemode='w',  level=logging.INFO, datefmt="%H:%M:%S")
+
+    print("UI on http://{}:{}. Logging to {}".format(server_address, server_port, logfile))
 
     logging.info("Main    : Entry")
 
