@@ -23,6 +23,7 @@ server_port = "8080"
 
 Verbose = False
 Webserver_loop = None
+Connections = {} # could be a attrib of App
 
 def usage():
     program_name = sys.argv[0]
@@ -94,10 +95,44 @@ def aiohttp_server():
         with open('index.html') as f:
             return web.Response(text=f.read(), content_type='text/html')
 
+
+    @sio.event(namespace='/')
+    def connect(sid, environ):
+        '''
+        On connect event handler.
+
+        Returnung false will deny connection.
+
+        :param sid string Sockect ID.
+        :param environ JSON Connection enviroment.
+        :return None
+        '''
+        global Connections
+
+        logging.info("Client connected: {}".format(sid))
+
+        Connections[sid] = environ;
+
+
+    @sio.event(namespace='/')
+    def disconnect(sid):
+        '''
+        On disconnect event handler.
+
+        :param sid string Sockect ID.
+        :return None
+        '''
+        global Connections
+
+        logging.info('Client disconnected {}'.format(sid))
+
+        Connections.pop(sid, None)
+
+
     # If we wanted to create a new websocket endpoint, use this decorator,
     # passing in the name of the event we wish to listen out for
-    @sio.on('message')
-    async def print_message(sid, message):
+    @sio.on('message', namespace="/")
+    async def message_handler(sid, message):
         # When we receive a new event of type 'message' through a socket.io connection
         # we print the socket ID and the message
 
