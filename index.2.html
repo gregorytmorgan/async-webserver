@@ -4,13 +4,23 @@
         <title>Async Server Test #2</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <!-- <meta http-equiv="Content-Security-Policy" content="default-src gap://ready file://* *; style-src 'self' http://* https://* 'unsafe-inline'; script-src 'self' http://* https://* 'unsafe-inline'"> -->
+
         <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
         <script>
 
-        var server_address = "localhost";
-        var server_port = "8080";
+        let server_address = "localhost";
+        let server_port = "8080";
 
-        const socket = io("http://" + server_address + ":" + server_port);
+        let socket = io("http://" + server_address + ":" + server_port, {
+            "autoConnect": true,            // default = true
+            "reconnection": true,           // default = true
+            "timeout": 10000,               // default = 20000
+            "reconnectionAttempts": 10,     // default = Infinity
+            "reconnectionDelay": 1000,      // default = 1000
+            "reconnectionDelayMax": 5000,   // default = 5000
+            "transports": ['websocket']     // default = ['polling', 'websocket']
+        });
 
         function shutdown() {
             let msgInput = document.getElementById("msg_input");
@@ -49,6 +59,12 @@
             let elmResponse = document.getElementById("response_container");
             elmResponse.innerHTML += '<p class="response">Msg from the server: ' + data + " (" + (new Date()).toUTCString() + ")</p>";
         });
+
+        function connections() {
+            let msgInput = document.getElementById("msg_input");
+            msgInput.value = "connections";
+            sendMsg();
+        }
 
         function socketConnStatus() {
             let elmConn = document.getElementById("connStatus");
@@ -139,6 +155,7 @@
         <div><h2>Commands</h2></div>
         <div id="commands_container">
             <button id="bShutdown" onClick="shutdown()">Shutdown</button>
+            <button id="bConnections" onClick="connections()">Connections</button>
             <button id="bShortReq" onClick="makeRequest(0)" title="Server request that is handled immediately">Short Req</button>
             <button id="bLongReq" onClick="makeRequest(1)" title="Server request that take n seconds to respond.">Long Req</button>
         </div>
