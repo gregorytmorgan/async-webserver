@@ -1,1 +1,123 @@
-asyncwebserver/index.html
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Async Server Test</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+        <script>
+
+        var server_address = "localhost"
+        var server_port = "8080"
+
+        const socket = io("http://" + server_address + ":" + server_port);
+
+        function shutdown() {
+            let msgInput = document.getElementById("msg_input");
+            msgInput.value = "CMD:SHUTDOWN"
+            sendMsg()
+        }
+
+        function clearResponses() {
+            let elmResponse = document.getElementById("response_container");
+            elmResponse.innerHTML = "";
+        }
+
+        function sendMsg() {
+            let msgInput = document.getElementById("msg_input");
+            msg = msgInput.value
+            console.log("Client says: " + msg)
+            socket.emit("message", msg);
+        }
+
+        socket.on("message", function(data) {
+            console.log("Server response: " + data);
+            let elmResponse = document.getElementById("response_container");
+            elmResponse.innerHTML += '<p class="response">Msg from the server: ' + data + " (" + (new Date()).toUTCString() + ")</p>";
+        });
+
+        function socketConnStatus() {
+            let elmConn = document.getElementById("connStatus");
+            let status = !!(socket && socket.connected);
+            if(status) {
+                elmConn.innerHTML = "Connected " + server_address + ":" + server_port;
+                elmConn.className = "connected";
+                status = true;
+            } else {
+                elmConn.innerHTML = "Disconnected";
+                elmConn.className = "disconnected";
+                status = false;
+            }
+
+            return status;
+        }
+
+        setInterval(socketConnStatus, 2000);
+        </script>
+        <style>
+            #bClear {
+                margin: .25em 0 0 0;
+            }
+            #commands_container {
+                border: 1px solid silver;
+                margin: 1em 1em 0 0;
+                padding: .25em;
+            }
+            #response_container {
+                min-height: 1em;
+                border: 1px solid silver;
+                margin: 1em 1em 0 0;
+            }
+
+            .response {
+                margin: 1em 0 0 1em;
+            }
+
+            .response:last-child {
+                margin-bottom: 1em;
+            }
+
+            #connStatus {
+                display: inline-block;
+                border: 1px solid silver;
+                color: black;
+                margin: 0 0 0 .25em;
+                padding: .05em .25em .05em .25em;
+                border-radius: 5px;
+                vertical-align: middle;
+            }
+
+            #connStatus.unknown {
+                background-color: yellow;
+            }
+
+            #connStatus.connected {
+                background-color: green;
+            }
+
+            #connStatus.disconnected {
+                background-color: red;
+            }
+
+        </style>
+    </head>
+    <body>
+        <h1>Async Server Test</h1>
+        <p>
+            Server reads a string from STDIN and returns the reverse of the input string. Send CTRL-D to cleanly shutdown.
+        </p>
+        <p>
+            Send a message to the server via a web socket.
+        </p>
+        <input id="msg_input">
+        <button id="bSend" onClick="sendMsg()">Send</button><div id="connStatus" class="unknown">Unknown</div>
+
+        <div id="response_container"></div>
+        <button id="bClear" onClick="clearResponses()">Clear</button>
+        <div><h2>Commands</h2></div>
+        <div id="commands_container">
+            <button id="bShutdown" onClick="shutdown()">Shutdown</button>
+
+        </div>
+    </body>
+</html>
