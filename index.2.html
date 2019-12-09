@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <title>Async Server Test</title>
+        <title>Async Server Test #2</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
@@ -32,14 +32,16 @@
         function sendMsg(data) {
             let msgInput = document.getElementById("msg_input");
             let msg = msgInput.value;
-            if (data === undefined)
+            if (data === undefined) {
                 data = Object.create(null);
+            }
             console.log("Client emit: " + msg);
+            let elmResponse = document.getElementById("response_container");
             socket.emit(msg, data, function (response) {
                 console.log("response: " + response);
-                let elmResponse = document.getElementById("response_container");
                 elmResponse.innerHTML += '<p class="response">ACK from the server: ' + response + " (" + (new Date()).toUTCString() + ")</p>";
             });
+            elmResponse.innerHTML += '<p class="response">Message "' + msg + '" sent: ' + " (" + (new Date()).toUTCString() + ")</p>";
         }
 
         socket.on("message", function(data) {
@@ -76,9 +78,11 @@
                 padding: .25em;
             }
             #response_container {
-                min-height: 1em;
+                height: 240px;
                 border: 1px solid silver;
                 margin: 1em 1em 0 0;
+                overflow-x: hidden;
+                overflow-y: auto;
             }
 
             .response {
@@ -114,12 +118,18 @@
         </style>
     </head>
     <body>
-        <h1>Async Server Test</h1>
+        <h1>Async Server Test #2</h1>
         <p>
-            Server reads a string from STDIN and returns the reverse of the input string. Send CTRL-D to cleanly shutdown.
+            Send a message to a server via a web socket.
         </p>
         <p>
-            Send a message to the server via a web socket.
+            Test async & threaded request handling. Short request are handled async, immediately.
+            Long request are handled async, but the response takes n (n=10) seconds and is handled
+            by a thread pool with only t threads available (t=2). Quickly sending t+1 long request will
+            result in t request returning in n seconds and the t+1 request in ~ n*2 seconds.
+        </p>
+        <p>
+            Send CTRL-D to cleanly shutdown the server.
         </p>
         <input id="msg_input">
         <button id="bSend" onClick="sendMsg()">Send</button><div id="connStatus" class="unknown">Unknown</div>
@@ -129,8 +139,8 @@
         <div><h2>Commands</h2></div>
         <div id="commands_container">
             <button id="bShutdown" onClick="shutdown()">Shutdown</button>
-            <button id="bShortReq" onClick="makeRequest(0)">Short Req</button>
-            <button id="bLongReq" onClick="makeRequest(1)">Long Req</button>
+            <button id="bShortReq" onClick="makeRequest(0)" title="Server request that is handled immediately">Short Req</button>
+            <button id="bLongReq" onClick="makeRequest(1)" title="Server request that take n seconds to respond.">Long Req</button>
         </div>
     </body>
 </html>

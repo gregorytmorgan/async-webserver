@@ -95,8 +95,11 @@ def aiohttp_server():
 
         loop = asyncio.get_event_loop()
 
+        # delay, e.g block_for(n)
+        n = 10
+
         # will block until there are threads available
-        task = loop.run_in_executor(tp_executor, block_for, 10) # task block for 10 seconds
+        task = loop.run_in_executor(tp_executor, block_for, n) # task block for n seconds
 
         completed, pending = await asyncio.wait([task])
 
