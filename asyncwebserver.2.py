@@ -52,7 +52,7 @@ def block_for(secs):
 
     return "block_for done"
 
-def aiohttp_server():
+def aiohttp_init():
     '''
     Create a web server
 
@@ -60,10 +60,15 @@ def aiohttp_server():
     '''
     global sio
 
-    logging.info("aiohttp_server - entry")
+    logging.info("aiohttp_init - entry")
 
     # Creates a new Aiohttp Web Application
     app = web.Application()
+
+    # register state change handlers
+    app.on_startup.append(startup)
+    app.on_shutdown.append(cleanup)
+    app.on_shutdown.append(shutdown)
 
     # Binds our Socket.IO server to our Web App instance
     sio.attach(app)
@@ -137,11 +142,11 @@ def aiohttp_server():
         cors.add(resource, {'*': aiohttp_cors.ResourceOptions(allow_credentials=True, expose_headers="*", allow_headers="*")})
 
     runner = web.AppRunner(app)
-    logging.info("aiohttp_server - exit")
+    logging.info("aiohttp_init - exit")
     return runner
 
 
-def run_server(runner):
+def web_server(runner):
     '''
     Start the web server
 
@@ -151,7 +156,7 @@ def run_server(runner):
     global server_port
     global Webserver_loop
 
-    logging.info("run_server - entry")
+    logging.info("web_server thread - entry")
     Webserver_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(Webserver_loop)
 
@@ -159,7 +164,7 @@ def run_server(runner):
     Webserver_loop.run_until_complete(runner.setup())
     site = web.TCPSite(runner, server_address, server_port)
     Webserver_loop.run_until_complete(site.start())
-    logging.info("run_server - starting run loop")
+    logging.info("web_server - thread starting run loop")
 
     # start the server, run until explicitly stopped
     Webserver_loop.run_forever()
@@ -167,7 +172,7 @@ def run_server(runner):
     # once stop is called, we run the cleanup task
     Webserver_loop.run_until_complete(runner.cleanup())
 
-    logging.info("run_server - exit")
+    logging.info("web_server thread - exit")
 
 
 def shutdown_server():
@@ -189,6 +194,54 @@ def shutdown_server():
     Webserver_loop.call_soon_threadsafe(Webserver_loop.stop)
 
 
+def stdin_reader():
+    '''
+    Read from STDIN until CTRL-D
+
+    :id int The thread id
+    :return None
+    '''
+    global Verbose
+
+    logging.info("stdin_reader thread - entry")
+
+    for line in sys.stdin:
+        logging.info("STDIN: {}".format(line.rstrip()))
+
+    shutdown_server()
+
+    logging.info("stdin_reader thread - exit")
+
+
+async def startup(app):
+    '''
+    Web server startup
+
+    :app object web.Application
+    :return None
+    '''
+    logging.info("web server startup - entry/exit")
+
+
+async def cleanup(app):
+    '''
+    Web server cleanup
+
+    :app object web.Application
+    :return None
+    '''
+    logging.info("web server cleanup: entry/exit")
+
+
+async def shutdown(app):
+    '''
+    Web server shutdown
+
+    :app object web.Application
+    :return None
+    '''
+    logging.info("web server shutdown: entry/exit")
+
 #
 # main
 #
@@ -200,24 +253,20 @@ if __name__ == "__main__":
 
     logging.info("main - entry")
 
-    logging.info("main - creating threads ...")
+    # start the STDIN reader as a daemon so that it goes away when main exits
+    t_stdin_reader = threading.Thread(target=stdin_reader, args=(), daemon=True)
 
     # the server isn't a daemon because it needs a clean shutdown
-    t_webserver = threading.Thread(target=run_server, args=(aiohttp_server(),), daemon=False)
+    t_webserver = threading.Thread(target=web_server, args=(aiohttp_init(),), daemon=False)
 
-    logging.info("main - creating threads ... done.")
+    logging.info("main - starting stdin reader")
 
-    logging.info("main - starting threads ...")
+    t_stdin_reader.start()
+
+    logging.info("main - starting web server")
 
     t_webserver.start()
-
-    logging.info("main - starting threads ... done.")
-
-    logging.info("main - waiting for web server thread to finish ...")
-
-    t_webserver.join()
-
-    logging.info("main - waiting for web server thread to finish ... done.")
+    t_webserver.join() # wait for web server thread to exit
 
     logging.info("main - exit")
 
