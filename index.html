@@ -58,13 +58,17 @@
             #bClear {
                 margin: .25em 0 0 0;
             }
+            
             #commands_container {
                 border: 1px solid silver;
                 margin: 1em 1em 0 0;
                 padding: .25em;
             }
+
             #response_container {
-                min-height: 1em;
+                height: 200px;
+                overflow-x: hidden;
+                overflow-y: auto;
                 border: 1px solid silver;
                 margin: 1em 1em 0 0;
             }
@@ -117,7 +121,6 @@
         <div><h2>Commands</h2></div>
         <div id="commands_container">
             <button id="bShutdown" onClick="shutdown()">Shutdown</button>
-
         </div>
     </body>
 </html>

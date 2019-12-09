@@ -66,7 +66,11 @@ def stdin_reader():
     logging.info("Thread  : stdin_reader is starting")
 
     for line in sys.stdin:
-        logging.info("STDIN   : {}".format(line.rstrip()))
+        s = line.strip()
+        logging.info("STDIN   : {}".format(s))
+        rs = s[::-1]
+        logging.info("STDOUT  : {}".format(rs))
+        print(rs) # reverse the input
 
     shutdown_server()
 
@@ -143,14 +147,13 @@ def aiohttp_server():
             if cmd == "SHUTDOWN":
                 response = '{"response":"ok", "response-text":"ok", "response-code":200}'
                 await sio.emit("message", response)
-                print("bye", flush=True) # annouce to server the client is going away
                 shutdown_server()
             else:
-                pass
+                logging.info("Thread  : Invalid command {}".format(cmd))
         else:
-            response = '{"response":"ok", "response-text":"ok", "response-code":200}'
+            response = '{"response":' + message[::-1] + ', "response-text":"ok", "response-code":200}'
             await sio.emit("message", response)
-            print(message, flush=True)
+            logging.info("Thread  : socket response: {}".format(response))
 
     # We bind our aiohttp endpoint to our app router
     app.router.add_get('/', index_page_handler)
@@ -253,5 +256,7 @@ if __name__ == "__main__":
     logging.info("Main    : Waiting for web server thread to finish ... done.")
 
     logging.info("Main    : Exit")
+
+    print("Goodbye")
 
 # end file

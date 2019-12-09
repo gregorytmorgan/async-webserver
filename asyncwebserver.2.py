@@ -1,26 +1,48 @@
 #!/usr/bin/env python3.6
 #
-# Web server with websockets
-#
-# Logs to asyncwebserver.log
+# Web server with websocket/socket.io exploration
 #
 
 import sys
-import socketio
-import asyncio
 import logging
 import threading
 import aiohttp_cors
 import time
+import json
 
+# https://python-socketio.readthedocs.io/en/latest/index.html
+import socketio
+
+# https://docs.python.org/3.6/library/asyncio.html
+# used to manage the aiohttp server tasks, get the async event loop
+import asyncio
+
+# Used to asynchronously spawn a web server response thread
 from concurrent.futures import ThreadPoolExecutor
 
+# https://docs.aiohttp.org/en/stable/index.html
+# used for base web server
 from aiohttp import web
 
-# creates a new Async Socket IO Server
+# creates a new Async Socket.IO Server (note: socket.io is not strictly a websocket server)
 sio = socketio.AsyncServer(async_mode='aiohttp', cors_allowed_origins='*') # , async_handlers=True will prevent queueing of messages from a single client
 
+#
+# globals
+#
+app =  None
+
 logfile = 'asyncwebserver.2.log'
+
+server_address = "localhost"
+server_port = "8080"
+
+Webserver_loop = None
+
+# delay/block in the long_request hander for n seconds
+long_request_delay = 4
+
+tp_executor = ThreadPoolExecutor(max_workers = 2)
 
 logging.basicConfig(
     format="%(asctime)s: %(message)s",
@@ -30,40 +52,63 @@ logging.basicConfig(
     datefmt="%H:%M:%S"
 )
 
-server_address = "localhost"
-server_port = "8080"
+#
+# helper methods
+#
 
-Webserver_loop = None
+def shutdown_server():
+    '''
+    Stop the web server
+
+    Cancels all the asyncio tasks. Once the web server exits, the main process
+    will exit as well.
+
+    :return None
+    '''
+    global Webserver_loop
+
+    logging.info("shutdown_server: entry")
+
+    # before stopping the web server, cancel all tasks
+    for task in asyncio.Task.all_tasks(Webserver_loop):
+        logging.info("shutdown_server: Cancel task")
+        Webserver_loop.call_soon_threadsafe(task.cancel)
+
+    # calling Webserver_loop.stop() will not do anything. You must use call_soon_threadsafe()
+    Webserver_loop.call_soon_threadsafe(Webserver_loop.stop)
+
 
 def block_for(secs):
     '''
+    Block / return after secs seconds have passed.
 
+    :secs integer Delay in seconds.
+    :return string
     '''
     logging.info("block_for - entry({})".format(secs))
 
     time.sleep(secs)
 
-    #t0 = time.time()
-    #x = 0
-    #while time.time() < t0 + secs:
-    #    x = x + 1
-
     logging.info("block_for - exit")
 
     return "block_for done"
+
 
 def aiohttp_init():
     '''
     Create a web server
 
-    :return None
+    :return web.AppRunner
     '''
     global sio
+    global app
 
     logging.info("aiohttp_init - entry")
 
     # Creates a new Aiohttp Web Application
     app = web.Application()
+
+    app['connections'] = {}
 
     # register state change handlers
     app.on_startup.append(startup)
@@ -72,62 +117,6 @@ def aiohttp_init():
 
     # Binds our Socket.IO server to our Web App instance
     sio.attach(app)
-
-    tp_executor = ThreadPoolExecutor(max_workers = 2)
-
-    # we can define aiohttp endpoints just as we normally would with no change
-    async def index_page_handler(request):
-        with open('index.2.html') as f:
-            return web.Response(text=f.read(), content_type='text/html')
-
-    @sio.on('short_request')
-    async def handle_short_request(sid, data):
-        logging.info("handle_short_request - entry")
-        await sio.emit("message", '{"response":"ok", "response-text":"ok", "response-code":200, "request":"short_request"}', room=sid)
-        logging.info("handle_short_request - exit")
-        return "short_request ack"
-
-    @sio.on('long_request')
-    async def handle_long_request(sid, data):
-        logging.info("handle_long_request - entry")
-
-        logging.info("handle_long_request - data:" + str(data))
-
-        if not data:
-            return "long_request ack - no data"
-
-        logging.info("handle_long_request - before run_in_executor".format())
-
-        loop = asyncio.get_event_loop()
-
-        # delay, e.g block_for(n)
-        n = 10
-
-        # will block until there are threads available
-        task = loop.run_in_executor(tp_executor, block_for, n) # task block for n seconds
-
-        completed, pending = await asyncio.wait([task])
-
-        results = [t.result() for t in completed]
-
-        logging.info('results: {!r}'.format(results))
-
-        logging.info("block_for - before emit")
-
-        await sio.emit("message", '{"response":"ok", "response-text":"ok", "response-code":200, "request":"long_request"}', room=sid)
-
-        logging.info("handle_long_request - exit")
-
-        return "long_request ack"
-
-    @sio.on('shutdown')
-    async def handle_shutdown_request(sid, data):
-        logging.info("handle_shutdown_request - entry")
-        await sio.emit("message", '{"response":"ok", "response-text":"ok", "response-code":200, "request":"shutdown"}', room=sid)
-        print("Goodbye", flush=True)
-        shutdown_server()
-        logging.info("handle_shutdown_request - exit")
-        return "shutdown_request ack"
 
     # We bind our aiohttp endpoint to our app router
     app.router.add_get('/', index_page_handler)
@@ -145,11 +134,15 @@ def aiohttp_init():
     logging.info("aiohttp_init - exit")
     return runner
 
+#
+# threads
+#
 
 def web_server(runner):
     '''
     Start the web server
 
+    :runner web.AppRunner
     :return None
     '''
     global server_address
@@ -175,25 +168,6 @@ def web_server(runner):
     logging.info("web_server thread - exit")
 
 
-def shutdown_server():
-    '''
-    Stop the web server
-
-    :return None
-    '''
-    global Webserver_loop
-
-    logging.info("shutdown_server: entry")
-
-    # before stopping the web server, cancel all tasks
-    for task in asyncio.Task.all_tasks(Webserver_loop):
-        logging.info("shutdown_server: Cancel task")
-        Webserver_loop.call_soon_threadsafe(task.cancel)
-
-    # calling Webserver_loop.stop() will not do anything. You must use call_soon_threadsafe()
-    Webserver_loop.call_soon_threadsafe(Webserver_loop.stop)
-
-
 def stdin_reader():
     '''
     Read from STDIN until CTRL-D
@@ -211,6 +185,58 @@ def stdin_reader():
     shutdown_server()
 
     logging.info("stdin_reader thread - exit")
+
+#
+# async handlers
+#
+
+@sio.on('connect', namespace='/')
+def connect_handler(sid, environ):
+    '''
+    Connection handler
+
+    :sid hash connection
+    :environ dictionary
+    :return None
+    '''
+
+    logging.info("connect(" + sid + ") - entry")
+
+    #print("{}".format(environ))
+
+    if sid in app['connections']:
+        print("Error ----------- conn exists")
+        logging.info("Error ----------- conn exists")
+    else:
+        conn = {
+            "id": sid,
+            "environ": environ,
+            "last_seen": time.time(),
+            "connected_on": time.time(),
+            "last_message": ""
+        }
+
+    app['connections'][sid] = conn
+
+    logging.info("connect - exit")
+
+
+@sio.on('disconnect', namespace='/')
+def disconnect_handler(sid):
+    '''
+    Disconnect handler
+
+    :sid hash connection
+    :return None
+    '''
+    logging.info("disconnect(" + sid + ") - entry")
+
+    if sid in app['connections']:
+        app['connections'].pop(sid, None)
+    else:
+        logging.info("disconnect - Error: Unknown connection: " + sid)
+
+    logging.info("disconnect - exit")
 
 
 async def startup(app):
@@ -242,6 +268,61 @@ async def shutdown(app):
     '''
     logging.info("web server shutdown: entry/exit")
 
+
+# we can define aiohttp endpoints just as we normally would with no change
+async def index_page_handler(request):
+    with open('index.2.html') as f:
+        return web.Response(text=f.read(), content_type='text/html')
+
+
+@sio.on('short_request')
+async def handle_short_request(sid, data):
+    logging.info("handle_short_request(" + sid + ") - entry")
+    await sio.emit("message", '{"response":"ok", "response-text":"ok", "response-code":200, "request":"short_request"}', room=sid)
+    logging.info("handle_short_request - exit")
+    return "short_request ack"
+
+
+@sio.on('long_request')
+async def handle_long_request(sid, data):
+    logging.info("handle_long_request(" + sid + ") - entry")
+
+    loop = asyncio.get_event_loop()
+
+    # will block until there are threads available
+    task = loop.run_in_executor(tp_executor, block_for, long_request_delay) # task block for n seconds
+
+    completed, pending = await asyncio.wait([task])
+
+    results = [t.result() for t in completed]
+
+    logging.info('handle_long_request - results: {!r}'.format(results))
+
+    await sio.emit("message", '{"response":"ok", "response-text":"ok", "response-code":200, "request":"long_request"}', room=sid)
+
+    logging.info("handle_long_request - exit")
+
+    return "long_request ack"
+
+
+@sio.on('shutdown')
+async def handle_shutdown_request(sid, data):
+    logging.info("handle_shutdown_request(" + sid + ") - entry")
+    await sio.emit("message", '{"response":"ok", "response-text":"ok", "response-code":200, "request":"shutdown"}', room=sid)
+    shutdown_server()
+    logging.info("handle_shutdown_request - exit")
+    return "shutdown_request ack"
+
+
+@sio.on('connections')
+async def handle_connections_request(sid, data):
+    logging.info("handle_connections_request(" + sid + ") - entry")
+    conn_list = json.dumps(list(app['connections'].keys()));
+    await sio.emit("message", '{"response":' + conn_list + ', "response-text":"ok", "response-code":200, "request":"connections"}', room=sid)
+    logging.info("handle_connections_request - exit")
+    return "connections_ack"
+
+
 #
 # main
 #
@@ -267,6 +348,8 @@ if __name__ == "__main__":
 
     t_webserver.start()
     t_webserver.join() # wait for web server thread to exit
+
+    print("Goodbye", flush=True)
 
     logging.info("main - exit")
 
