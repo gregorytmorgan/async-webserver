@@ -3,7 +3,7 @@
 #
 
 tmp/
-  
+__pycache__/  
 /nb-configuration.xml
 
 *.log
