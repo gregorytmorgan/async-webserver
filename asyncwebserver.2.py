@@ -2,6 +2,23 @@
 #
 # Web server with websocket/socket.io exploration
 #
+# Named-event variant of asyncwebserver.py. Instead of one generic 'message'
+# event it handles named socket.io events, each returning an ack to the
+# client callback:
+#   short_request - replies immediately
+#   long_request  - blocks for long_request_delay seconds in a 2 worker
+#                   thread pool (tp_executor), then replies
+#   connections   - replies with the list of connected socket IDs
+#   shutdown      - stops the server
+# Tracks clients in app['connections'] via connect/disconnect handlers and
+# registers aiohttp startup/cleanup/shutdown stubs. STDIN lines are only
+# logged; CTRL-D (EOF) shuts the server down. No command line options.
+# Serves index.2.html.
+#
+# See asyncwebserver.py for the original single-event STDIN/STDOUT version.
+#
+# Logs to asyncwebserver.2.log
+#
 
 import sys
 import logging

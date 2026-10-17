@@ -2,6 +2,14 @@
 #
 # Web server with websockets + does IO via STDIN/STDOUT
 #
+# Original single-event version. Every socket.io client message arrives on
+# the generic 'message' event and the server replies with the reversed string;
+# "CMD:SHUTDOWN" stops the server. Each STDIN line is echoed back reversed on
+# STDOUT, and CTRL-D (EOF) shuts the server down. Supports -h/--help and
+# -v/--verbose. Serves index.html.
+#
+# See asyncwebserver.2.py for the named-event / thread pool variant.
+#
 # Logs to asyncwebserver.log
 #
 # Ref:
