@@ -148,7 +148,7 @@
         </p>
         <p>
             Test async & threaded request handling. Short request are handled async, immediately.
-            Long request are handled async, but the response takes n (n=10) seconds and is handled
+            Long request are handled async, but the response takes n (n=4) seconds and is handled
             by a thread pool with only t threads available (t=2). Quickly sending t+1 long request will
             result in t request returning in n seconds and the t+1 request in ~ n*2 seconds.
         </p>
